@@ -4,7 +4,10 @@ from tensorflow.python.saved_model.signature_def_utils_impl import predict_signa
 import os
 import logging
 import pickle
-import tensorflow as tf
+# import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
+
 import numpy as np
 import network as network
 import sampling as sampling
@@ -41,8 +44,9 @@ opt = parser.parse_args()
 
 os.environ['CUDA_VISIBLE_DEVICES'] = opt.cuda
 
-if not os.path.isdir("cached"):
-    os.mkdir("cached")
+CASHED_PATH = '/data/treecaps/cached'
+if not os.path.isdir(CASHED_PATH):
+    os.mkdir(CASHED_PATH)
 
 
 def train_model(train_trees, val_trees, labels, embedding_lookup, opt):

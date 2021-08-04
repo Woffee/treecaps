@@ -17,13 +17,14 @@ def download_url(url, output_path):
 
 
 code_classification_data_url = "https://ai4code.s3-ap-southeast-1.amazonaws.com/OJ_data.zip"
-output_path = "OJ_data.zip"
+
+output_path = "/data/treecaps/OJ_data.zip"
 
 download_url(code_classification_data_url, output_path)
 
 with zipfile.ZipFile(output_path) as zf:
     for member in tqdm(zf.infolist(), desc='Extracting '):
         try:
-            zf.extract(member, ".")
+            zf.extract(member, "/data/treecaps/")
         except zipfile.error as e:
             pass

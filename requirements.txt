@@ -6,7 +6,8 @@
 ###################################################
 
 ## Keras neural-network library ##
-keras
+keras==2.2.4
+keras_radam
 
 ## Tensorflow neural-network library ##
 tensorflow==1.15.4
