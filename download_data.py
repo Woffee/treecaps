@@ -1,7 +1,8 @@
 import urllib.request
 import zipfile
 from tqdm import tqdm
-
+import os
+from pathlib import Path
 
 class DownloadProgressBar(tqdm):
     def update_to(self, b=1, bsize=1, tsize=None):
@@ -18,13 +19,16 @@ def download_url(url, output_path):
 
 code_classification_data_url = "https://ai4code.s3-ap-southeast-1.amazonaws.com/OJ_data.zip"
 
-output_path = "/data/treecaps/OJ_data.zip"
 
-download_url(code_classification_data_url, output_path)
+output_path = "/data/treecaps"
+Path(output_path).mkdir(parents=True, exist_ok=True)
+data_filename = output_path + "/OJ_data.zip"
 
-with zipfile.ZipFile(output_path) as zf:
+download_url(code_classification_data_url, data_filename)
+
+with zipfile.ZipFile(data_filename) as zf:
     for member in tqdm(zf.infolist(), desc='Extracting '):
         try:
-            zf.extract(member, "/data/treecaps/")
+            zf.extract(member, output_path)
         except zipfile.error as e:
             pass

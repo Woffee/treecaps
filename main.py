@@ -7,7 +7,7 @@ import pickle
 # import tensorflow as tf
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
-
+from pathlib import Path
 import numpy as np
 import network as network
 import sampling as sampling
@@ -29,10 +29,13 @@ parser.add_argument('--niter', type=int, default=25, help='number of epochs to t
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--verbal', type=bool, default=True, help='print training info or not')
 parser.add_argument('--n_classes', type=int, default=10, help='manual seed')
-parser.add_argument('--train_directory', default="OJ_data/train", help='train program data') 
+
+parser.add_argument('--train_directory', default="OJ_data/train", help='train program data')
 parser.add_argument('--test_directory', default="OJ_data/test", help='test program data')
 parser.add_argument('--model_path', default="model/batch_1", help='path to save the model')
-parser.add_argument('--training', action="store_true",help='is training')
+parser.add_argument('--cache_path', default="cached", help='path to save the cache')
+
+parser.add_argument('--training', action="store_true", default=True, help='is training')
 parser.add_argument('--testing', action="store_true",help='is testing')
 parser.add_argument('--training_percentage', type=float, default=1.0 ,help='percentage of data use for training')
 parser.add_argument('--log_path', default="" ,help='log path for tensorboard')
@@ -44,9 +47,9 @@ opt = parser.parse_args()
 
 os.environ['CUDA_VISIBLE_DEVICES'] = opt.cuda
 
-CASHED_PATH = '/data/treecaps/cached'
-if not os.path.isdir(CASHED_PATH):
-    os.mkdir(CASHED_PATH)
+CASHED_PATH = opt.cache_path
+Path(CASHED_PATH).mkdir(parents=True, exist_ok=True)
+
 
 
 def train_model(train_trees, val_trees, labels, embedding_lookup, opt):
@@ -213,10 +216,12 @@ def main(opt):
 
     if opt.training:
         print("Loading train trees...")
-        train_data_loader = MonoLanguageProgramData(opt.train_directory, 0, opt.n_classes)
+        cached_path = opt.cache_path
+
+        train_data_loader = MonoLanguageProgramData(opt.train_directory, 0, opt.n_classes, cached_path)
         train_trees, _ = train_data_loader.trees, train_data_loader.labels
 
-        val_data_loader = MonoLanguageProgramData(opt.test_directory, 2, opt.n_classes)
+        val_data_loader = MonoLanguageProgramData(opt.test_directory, 2, opt.n_classes, cached_path)
         val_trees, _ = val_data_loader.trees, val_data_loader.labels
 
         train_model(train_trees, val_trees, labels, node_type_lookup , opt) 

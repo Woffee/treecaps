@@ -10,14 +10,13 @@ import random
 import pickle
 import csv
 
-CASHED_PATH = '/data/treecaps/cached'
-if not os.path.isdir(CASHED_PATH):
-    os.mkdir(CASHED_PATH)
+# CASHED_PATH = '/data/treecaps/cached'
+# if not os.path.isdir(CASHED_PATH):
+#     os.mkdir(CASHED_PATH)
 
 class MonoLanguageProgramData():
    
-    def __init__(self, path, train_test_val, n_classes):
-        cached_path = CASHED_PATH
+    def __init__(self, path, train_test_val, n_classes, cached_path):
         base_name = os.path.basename(path)
         if train_test_val == 0:
            saved_input_filename = "%s/%s-%d-train.pkl" % (cached_path, path.split("/")[-2], n_classes)
