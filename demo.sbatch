@@ -9,7 +9,7 @@
 #SBATCH  --gres=gpu:TitanRtx:1
 #SBATCH  --nodes=1
 ##SBATCH  --ntasks-per-node=2
-#SBATCH  --mem=64G
+#SBATCH  --mem=100G
 
 module load cuda
 module load singularity
