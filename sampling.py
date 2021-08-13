@@ -1,9 +1,9 @@
-import pickle
-import numpy as np
+# import pickle
+# import numpy as np
 import random
-from tqdm import *
+# from tqdm import *
 
-from keras.preprocessing.sequence import pad_sequences
+# from keras.preprocessing.sequence import pad_sequences
 
 def gen_samples(trees, labels):
     """Creates a generator that returns a tree in BFS order with each node
@@ -35,14 +35,14 @@ def gen_samples(trees, labels):
             nodes.append(int(n))
 
     
-        yield (nodes, children, label)
+        yield (nodes, children, label, tree['func_key'])
     
 
 def batch_samples(gen, batch_size):
     """Batch samples from a generator"""
     nodes, children, labels = [], [], []
     samples = 0
-    for n, c, l in gen:
+    for n, c, l, k in gen:
         nodes.append(n)
         children.append(c)
         labels.append(l)

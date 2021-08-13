@@ -1,12 +1,17 @@
+"""
+
+使用 big-vul 的数据集训练。
+"""
+
 from tensorflow import saved_model
 from tensorflow.python.saved_model import tag_constants
 from tensorflow.python.saved_model.signature_def_utils_impl import predict_signature_def
 import os
 import logging
 import pickle
-# import tensorflow as tf
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+import tensorflow as tf
+# import tensorflow.compat.v1 as tf
+# tf.disable_v2_behavior()
 from pathlib import Path
 import numpy as np
 import network as network
@@ -18,8 +23,8 @@ from data_loader import load_program_data
 from data_loader import MonoLanguageProgramData
 import argparse
 import random
-import shutil
-import progressbar
+# import shutil
+# import progressbar
 from keras_radam.training import RAdamOptimizer
 import time
 
@@ -44,12 +49,14 @@ parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--verbal', type=bool, default=True, help='print training info or not')
 parser.add_argument('--n_classes', type=int, default=10, help='manual seed')
 
-parser.add_argument('--train_directory', default="/Users/woffee/www/vulnerability/dlvp/treecaps/data", help='train program data')
-parser.add_argument('--model_path', default="model/batch_2", help='path to save the model')
+parser.add_argument('--train_directory', default="treecaps_data", help='train program data')
+parser.add_argument('--model_path', default="model/batch_1", help='path to save the model')
+parser.add_argument('--graphs_file', default="/data/function2vec4/graphs.pkl", help='')
+
 parser.add_argument('--cache_path', default="cached", help='path to save the cache')
 parser.add_argument('--test_directory', default="OJ_data/test", help='test program data')
 
-parser.add_argument('--training', action="store_true", default=True, help='is training')
+parser.add_argument('--training', action="store_true", help='is training')
 parser.add_argument('--testing', action="store_true",help='is testing')
 parser.add_argument('--training_percentage', type=float, default=1.0 ,help='percentage of data use for training')
 parser.add_argument('--log_path', default="" ,help='log path for tensorboard')
@@ -79,9 +86,10 @@ def train_model(train_trees, val_trees, labels, embedding_lookup, opt):
     
     # random.shuffle(train_trees)
     
-    nodes_node, children_node, codecaps_node = network.init_net_treecaps(50, embedding_lookup, len(labels))
+    nodes_node, children_node, codecaps_node, codeCaps = network.init_net_treecaps(50, embedding_lookup, len(labels))
 
     codecaps_node = tf.identity(codecaps_node, name="codecaps_node")
+    codeCaps = tf.identity(codeCaps, name="codecaps")
 
     out_node = network.out_layer(codecaps_node)
     labels_node, loss_node = network.loss_layer(codecaps_node, len(labels))
@@ -121,8 +129,8 @@ def train_model(train_trees, val_trees, labels, embedding_lookup, opt):
 
             if not nodes:
                 continue
-            _, err, out = sess.run(
-                [train_point, loss_node, out_node],
+            _, err, out, emb = sess.run(
+                [train_point, loss_node, out_node, codeCaps],
                 feed_dict={
                     nodes_node: nodes,
                     children_node: children,
@@ -228,6 +236,58 @@ def train_model(train_trees, val_trees, labels, embedding_lookup, opt):
     # print('*'*50)
 
 
+def predict(val_trees, labels, embedding_lookup, opt):
+    logdir = opt.model_path
+    batch_size = opt.train_batch_size
+    epochs = opt.niter
+
+    # random.shuffle(train_trees)
+
+    nodes_node, children_node, codecaps_node, codeCaps = network.init_net_treecaps(50, embedding_lookup, len(labels))
+
+    codecaps_node = tf.identity(codecaps_node, name="codecaps_node")
+    codeCaps = tf.identity(codeCaps, name="codecaps")
+
+    out_node = network.out_layer(codecaps_node)
+    labels_node, loss_node = network.loss_layer(codecaps_node, len(labels))
+
+    optimizer = RAdamOptimizer(opt.lr)
+    train_point = optimizer.minimize(loss_node)
+
+    ### init the graph
+    sess = tf.Session()
+    sess.run(tf.global_variables_initializer())
+
+    # Initialize the variables (i.e. assign their default value)
+    init = tf.global_variables_initializer()
+
+    with tf.name_scope('saver'):
+        saver = tf.train.Saver()
+        ckpt = tf.train.get_checkpoint_state(logdir)
+        if ckpt and ckpt.model_checkpoint_path:
+            print("Loading model: {}".format(ckpt.model_checkpoint_path))
+            saver.restore(sess, ckpt.model_checkpoint_path)
+
+    correct_labels = []
+    predictions = []
+    # logits = []
+    for test_batch in sampling.batch_samples(
+            sampling.gen_samples(val_trees, labels), batch_size
+    ):
+        print("---------------")
+        nodes, children, batch_labels, func_key = test_batch
+        print(batch_labels)
+        output, codeCaps = sess.run([out_node, codeCaps],
+                          feed_dict={
+                              nodes_node: nodes,
+                              children_node: children
+                          }
+                          )
+        logger.info("codeCaps: {}".format(codeCaps.shape))
+        emb = tf.layers.flatten(codeCaps)
+        logger.info("emb: {}".format(emb.shape))
+        exit()
+
 def main(opt):
     
 
@@ -259,7 +319,7 @@ def main(opt):
 
         all_trees = []
         for i in range(opt.n_classes):
-            tree_file = DATA_PATH + "/treecaps_trees_{}.pkl".format(i)
+            tree_file = DATA_PATH + "/training/treecaps_trees_{}.pkl".format(i)
             with open(tree_file, 'rb') as file_handler:
                 trees = pickle.load(file_handler)
             for tree in trees:
@@ -284,17 +344,49 @@ def main(opt):
 
         train_model(train_trees, val_trees, labels, node_type_lookup , opt) 
 
-    # if opt.testing:
-    #     print("Loading test trees...")
-    #     test_data_loader = MonoLanguageProgramData(opt.test_directory, 1, opt.n_classes)
-    #     test_trees, _ = test_data_loader.trees, test_data_loader.labels
-    #     print("All testing trees : " + str(len(test_trees)))
-    #     test_model(test_trees, labels, embeddings, embed_lookup , opt) 
+    if opt.testing:
+        # /xye_data_nobackup/wenbo/dlvp/data/treecaps/data/all
+        logger.info("start testing...")
+        print("Loading node type....")
+        logger.info("Loading node type...")
+        node_type_lookup_file = DATA_PATH + "/node_type_lookup.pkl"
+        with open(node_type_lookup_file, 'rb') as fh:
+            node_type_lookup = pickle.load(fh, encoding='latin1')
+
+        logger.info("len of node_type_lookup: {}".format(len(node_type_lookup.keys())))
+
+        print("Loading train trees...")
+        logger.info("Loading train trees...")
+        cached_path = opt.cache_path
+
+        def get_nodes_num(node):
+            res = 1
+            for ch in node['children']:
+                res += get_nodes_num(ch)
+            return res
+
+        all_trees = []
+        for i in range(308): # 共 308 个 project
+            tree_file = DATA_PATH + "/all/treecaps_trees_{}.pkl".format(i)
+            if not os.path.exists(tree_file):
+                continue
+
+            with open(tree_file, 'rb') as file_handler:
+                trees = pickle.load(file_handler)
+            for tree in trees:
+                nn = get_nodes_num(tree['tree'])
+                # logger.info("== nn: {}".format(nn))
+                if nn >= 25 and nn <= 500:
+                    all_trees.append(tree)
+        logger.info("len(all_trees): {}".format(len(all_trees)))
+        predict(all_trees, labels, node_type_lookup, opt)
 
 if __name__ == "__main__":
     if not os.path.exists(opt.model_path):
         os.makedirs(opt.model_path)
     csv_log = open(opt.model_path+'/log.csv', "w")
     csv_log.write('Epoch,Training Loss,Validation Accuracy\n')
+
+    logger.info("opt: {}".format(opt))
     main(opt)
     csv_log.close()

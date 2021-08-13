@@ -14,5 +14,5 @@
 module load cuda
 module load singularity
 
-singularity exec --bind /xye_data_nobackup/wenbo/dlvp/data:/data --nv docker://woffee/keras:cflow_joern5 sh run.sh
+singularity exec --bind /xye_data_nobackup/wenbo/dlvp/data:/data --nv docker://woffee/keras:cflow_joern3.1 sh run.sh
 

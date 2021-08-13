@@ -111,7 +111,7 @@ def init_net_treecaps(feature_size, embedding_lookup, label_size):
         v_length = tf.sqrt(reduce_sum(tf.square(codeCaps),axis=2, keepdims=True) + 1e-9)
         out = tf.reshape(v_length,(-1,label_size))
 
-    return nodes, children, out
+    return nodes, children, out, codeCaps
 
 
 def compute_parent_node_types_tensor(nodes, node_embeddings_lookup):
