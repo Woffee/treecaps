@@ -110,7 +110,7 @@ def init_net_treecaps(feature_size, embedding_lookup, label_size):
         """Obtaining the classification output."""
         v_length = tf.sqrt(reduce_sum(tf.square(codeCaps),axis=2, keepdims=True) + 1e-9)
         out = tf.reshape(v_length,(-1,label_size))
-
+    codeCaps = tf.convert_to_tensor(codeCaps, dtype=tf.float32)
     return nodes, children, out, codeCaps
 
 

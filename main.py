@@ -1,3 +1,8 @@
+"""
+
+使用原作者的数据集训练
+"""
+
 from tensorflow import saved_model
 from tensorflow.python.saved_model import tag_constants
 from tensorflow.python.saved_model.signature_def_utils_impl import predict_signature_def
@@ -35,8 +40,8 @@ parser.add_argument('--test_directory', default="OJ_data/test", help='test progr
 parser.add_argument('--model_path', default="model/batch_1", help='path to save the model')
 parser.add_argument('--cache_path', default="cached", help='path to save the cache')
 
-parser.add_argument('--training', action="store_true", default=True, help='is training')
-parser.add_argument('--testing', action="store_true",help='is testing')
+parser.add_argument('--training', action="store_true",  help='is training')
+parser.add_argument('--testing', action="store_true", default=True, help='is testing')
 parser.add_argument('--training_percentage', type=float, default=1.0 ,help='percentage of data use for training')
 parser.add_argument('--log_path', default="" ,help='log path for tensorboard')
 parser.add_argument('--epoch', type=int, default=0, help='epoch to test')
@@ -60,9 +65,10 @@ def train_model(train_trees, val_trees, labels, embedding_lookup, opt):
     
     random.shuffle(train_trees)
     
-    nodes_node, children_node, codecaps_node = network.init_net_treecaps(50, embedding_lookup, len(labels))
+    nodes_node, children_node, codecaps_node, codeCaps = network.init_net_treecaps(50, embedding_lookup, len(labels))
 
     codecaps_node = tf.identity(codecaps_node, name="codecaps_node")
+    codeCaps = tf.identity(codeCaps, name="codecaps")
 
     out_node = network.out_layer(codecaps_node)
     labels_node, loss_node = network.loss_layer(codecaps_node, len(labels))
@@ -101,8 +107,10 @@ def train_model(train_trees, val_trees, labels, embedding_lookup, opt):
 
             if not nodes:
                 continue
-            _, err, out = sess.run(
-                [train_point, loss_node, out_node],
+            # emb: [1,10,8,1]
+            # N_cc * D_cc (10 * 8)
+            _, err, out, emb = sess.run(
+                [train_point, loss_node, out_node, codeCaps],
                 feed_dict={
                     nodes_node: nodes,
                     children_node: children,
@@ -206,6 +214,61 @@ def train_model(train_trees, val_trees, labels, embedding_lookup, opt):
     # print('*'*50)
 
 
+def predict(val_trees, labels, embedding_lookup, opt):
+
+    logdir = opt.model_path
+    batch_size = opt.train_batch_size
+    epochs = opt.niter
+
+    # random.shuffle(train_trees)
+
+    nodes_node, children_node, codecaps_node, codeCaps = network.init_net_treecaps(50, embedding_lookup, len(labels))
+
+    codecaps_node = tf.identity(codecaps_node, name="codecaps_node")
+    codeCaps = tf.identity(codeCaps, name="codecaps")
+
+    out_node = network.out_layer(codecaps_node)
+    labels_node, loss_node = network.loss_layer(codecaps_node, len(labels))
+
+    optimizer = RAdamOptimizer(opt.lr)
+    train_point = optimizer.minimize(loss_node)
+
+    ### init the graph
+    sess = tf.Session()
+    sess.run(tf.global_variables_initializer())
+
+    # Initialize the variables (i.e. assign their default value)
+    init = tf.global_variables_initializer()
+
+    with tf.name_scope('saver'):
+        saver = tf.train.Saver()
+        ckpt = tf.train.get_checkpoint_state(logdir)
+        if ckpt and ckpt.model_checkpoint_path:
+            print("Loading model: {}".format(ckpt.model_checkpoint_path))
+            saver.restore(sess, ckpt.model_checkpoint_path)
+
+    correct_labels = []
+    predictions = []
+    # logits = []
+    for test_batch in sampling.batch_samples(
+            sampling.gen_samples(val_trees, labels), batch_size
+    ):
+        print("---------------")
+        nodes, children, batch_labels = test_batch
+        # print(batch_labels)
+        output, codeCaps = sess.run([out_node, codeCaps],
+                          feed_dict={
+                              nodes_node: nodes,
+                              children_node: children
+                          }
+                          )
+        print("codeCaps.shape: {}".format(codeCaps.shape))
+        emb = tf.reshape(codeCaps, (1, 80))
+        print("emb.shape: {}".format(emb.shape))
+    # acc = accuracy_score(correct_labels, predictions)
+
+
+
 def main(opt):
     
     print("Loading node type....")
@@ -213,10 +276,10 @@ def main(opt):
         node_type_lookup = pickle.load(fh,encoding='latin1')
        
     labels = [str(i) for i in range(1, opt.n_classes+1)]
+    cached_path = opt.cache_path
 
     if opt.training:
         print("Loading train trees...")
-        cached_path = opt.cache_path
 
         train_data_loader = MonoLanguageProgramData(opt.train_directory, 0, opt.n_classes, cached_path)
         train_trees, _ = train_data_loader.trees, train_data_loader.labels
@@ -226,12 +289,12 @@ def main(opt):
 
         train_model(train_trees, val_trees, labels, node_type_lookup , opt) 
 
-    # if opt.testing:
-    #     print("Loading test trees...")
-    #     test_data_loader = MonoLanguageProgramData(opt.test_directory, 1, opt.n_classes)
-    #     test_trees, _ = test_data_loader.trees, test_data_loader.labels
-    #     print("All testing trees : " + str(len(test_trees)))
-    #     test_model(test_trees, labels, embeddings, embed_lookup , opt) 
+    if opt.testing:
+        print("Loading test trees...")
+        test_data_loader = MonoLanguageProgramData(opt.test_directory, 1, opt.n_classes, cached_path)
+        test_trees, _ = test_data_loader.trees, test_data_loader.labels
+        print("All testing trees : " + str(len(test_trees)))
+        predict(test_trees, labels, node_type_lookup , opt)
 
 if __name__ == "__main__":
     if not os.path.exists(opt.model_path):

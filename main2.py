@@ -27,6 +27,7 @@ import random
 # import progressbar
 from keras_radam.training import RAdamOptimizer
 import time
+import keras
 
 # log file
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -52,6 +53,7 @@ parser.add_argument('--n_classes', type=int, default=10, help='manual seed')
 parser.add_argument('--train_directory', default="treecaps_data", help='train program data')
 parser.add_argument('--model_path', default="model/batch_1", help='path to save the model')
 parser.add_argument('--graphs_file', default="/data/function2vec4/graphs.pkl", help='')
+parser.add_argument('--save_path', default="/data/function2vec4", help='')
 
 parser.add_argument('--cache_path', default="cached", help='path to save the cache')
 parser.add_argument('--test_directory', default="OJ_data/test", help='test program data')
@@ -74,6 +76,7 @@ CASHED_PATH = opt.cache_path
 Path(CASHED_PATH).mkdir(parents=True, exist_ok=True)
 
 DATA_PATH = opt.train_directory
+SAVE_PATH = opt.save_path
 
 random.seed(9)
 
@@ -271,22 +274,47 @@ def predict(val_trees, labels, embedding_lookup, opt):
     correct_labels = []
     predictions = []
     # logits = []
+
+    to_file = SAVE_PATH + "/all_func_embeddings_treecaps.pkl"
+    embeddings = {}
+    ii = 0
     for test_batch in sampling.batch_samples(
             sampling.gen_samples(val_trees, labels), batch_size
     ):
-        print("---------------")
-        nodes, children, batch_labels, func_key = test_batch
-        print(batch_labels)
-        output, codeCaps = sess.run([out_node, codeCaps],
+        # print("---------------")
+        nodes, children, batch_labels, func_keys = test_batch
+
+        if not nodes:
+            continue
+
+        # nodes = tf.convert_to_tensor(nodes, dtype=tf.float32)
+        # print(batch_labels)
+        # logger.info("out_node: {}, codeCaps: {}, nodes: {}, children: {}".format( type(out_node), type(codeCaps), type(nodes), type(children) ))
+
+        logger.info("test_batch now: {}".format(ii))
+        ii += 1
+
+        # logger.info(" === nodes: {}".format(nodes))
+        # logger.info(" === children: {}".format(children))
+
+        # 注意：不要 把 codeEmb 命名为 codeCaps，否则会覆盖 codeCaps。 参见： https://stackoverflow.com/a/54855498
+        output, codeEmb = sess.run([out_node, codeCaps],
                           feed_dict={
                               nodes_node: nodes,
                               children_node: children
                           }
                           )
-        logger.info("codeCaps: {}".format(codeCaps.shape))
-        emb = tf.layers.flatten(codeCaps)
-        logger.info("emb: {}".format(emb.shape))
-        exit()
+        logger.info("codeEmb: {}".format(codeEmb.shape))
+        # emb = keras.layers.flatten(codeCaps)
+        emb = tf.reshape(codeEmb, shape=[1, 80])
+        # logger.info("len(func_key): {}".format(len(func_key)))
+        # logger.info("func_key: {}".format(func_key))
+        embeddings[ func_keys[0] ] = emb
+        # logger.info("emb: {}".format(emb.shape))
+        # exit()
+    with open(to_file, 'wb') as file_handler:
+        pickle.dump(embeddings, file_handler, protocol=pickle.HIGHEST_PROTOCOL)
+    logger.info("saved to: {}".format(to_file))
 
 def main(opt):
     

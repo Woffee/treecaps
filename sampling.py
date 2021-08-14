@@ -16,7 +16,10 @@ def gen_samples(trees, labels):
     
         nodes = []
         children = []
-        label = label_lookup[tree['label']]
+        if tree['label'] in label_lookup:
+            label = label_lookup[tree['label']]
+        else:
+            label = 0
 
         queue = [(tree['tree'], -1)]
         while queue:
@@ -40,21 +43,22 @@ def gen_samples(trees, labels):
 
 def batch_samples(gen, batch_size):
     """Batch samples from a generator"""
-    nodes, children, labels = [], [], []
+    nodes, children, labels, func_keys = [], [], [], []
     samples = 0
     for n, c, l, k in gen:
         nodes.append(n)
         children.append(c)
         labels.append(l)
+        func_keys.append(k)
         samples += 1
         if samples >= batch_size:
-            yield _pad_batch(nodes, children, labels)
+            yield _pad_batch(nodes, children, labels, func_keys)
             nodes, children, labels = [], [], []
             samples = 0
 
-def _pad_batch(nodes, children, labels):
+def _pad_batch(nodes, children, labels, func_keys):
     if not nodes:
-        return [], [], []
+        return [], [], [], []
     max_nodes = max([len(x) for x in nodes])
     max_children = max([len(x) for x in children])
     child_len = max([len(c) for n in children for c in n])
@@ -65,7 +69,7 @@ def _pad_batch(nodes, children, labels):
     # pad every child sample so every node has the same number of children
     children = [[c + [0] * (child_len - len(c)) for c in sample] for sample in children]
 
-    return nodes, children, labels
+    return nodes, children, labels, func_keys
 
 
 def _onehot(i, total):
